@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: flowcare-db
+    environment:
+      POSTGRES_DB: flowcare
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: flowcare-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/flowcare
+      PORT: 3000
+      NODE_ENV: production
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE_MB: 5
+      ADMIN_EMAIL: admin@flowcare.com
+      ADMIN_PASSWORD: Admin@1234
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_data:/app/uploads
+    command: >
+      sh -c "npx prisma migrate deploy && node dist/index.js"
+
+volumes:
+  postgres_data:
+  uploads_data:

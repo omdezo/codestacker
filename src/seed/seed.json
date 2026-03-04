@@ -1,0 +1,179 @@
+{
+  "roles": [
+    { "id": "role-admin", "name": "admin" },
+    { "id": "role-branch-manager", "name": "branch_manager" },
+    { "id": "role-staff", "name": "staff" },
+    { "id": "role-customer", "name": "customer" }
+  ],
+  "systemConfig": [
+    { "key": "soft_delete_retention_days", "value": "30" }
+  ],
+  "admin": {
+    "id": "user-admin",
+    "email": "admin@flowcare.com",
+    "password": "Admin@1234",
+    "firstName": "System",
+    "lastName": "Admin",
+    "roleId": "role-admin"
+  },
+  "branches": [
+    {
+      "id": "branch-muscat",
+      "name": "FlowCare Muscat",
+      "location": "Al Khuwair, Muscat",
+      "phone": "+968 2456 7890"
+    },
+    {
+      "id": "branch-salalah",
+      "name": "FlowCare Salalah",
+      "location": "Al Hafah, Salalah",
+      "phone": "+968 2329 4567"
+    }
+  ],
+  "serviceTypes": [
+    {
+      "id": "svc-general-consult",
+      "name": "General Consultation",
+      "description": "General health consultation with a doctor",
+      "duration": 30
+    },
+    {
+      "id": "svc-blood-test",
+      "name": "Blood Test",
+      "description": "Blood sample collection and testing",
+      "duration": 15
+    },
+    {
+      "id": "svc-xray",
+      "name": "X-Ray",
+      "description": "Radiographic imaging service",
+      "duration": 20
+    },
+    {
+      "id": "svc-dental",
+      "name": "Dental Checkup",
+      "description": "Routine dental examination and cleaning",
+      "duration": 45
+    },
+    {
+      "id": "svc-eye-exam",
+      "name": "Eye Examination",
+      "description": "Comprehensive eye examination",
+      "duration": 30
+    },
+    {
+      "id": "svc-pharmacy",
+      "name": "Pharmacy Consultation",
+      "description": "Medication guidance and prescription pickup",
+      "duration": 10
+    }
+  ],
+  "branchServiceTypes": [
+    { "branchId": "branch-muscat", "serviceTypeId": "svc-general-consult" },
+    { "branchId": "branch-muscat", "serviceTypeId": "svc-blood-test" },
+    { "branchId": "branch-muscat", "serviceTypeId": "svc-xray" },
+    { "branchId": "branch-muscat", "serviceTypeId": "svc-dental" },
+    { "branchId": "branch-salalah", "serviceTypeId": "svc-general-consult" },
+    { "branchId": "branch-salalah", "serviceTypeId": "svc-blood-test" },
+    { "branchId": "branch-salalah", "serviceTypeId": "svc-eye-exam" },
+    { "branchId": "branch-salalah", "serviceTypeId": "svc-pharmacy" }
+  ],
+  "staff": [
+    {
+      "userId": "user-manager-muscat",
+      "staffId": "staff-manager-muscat",
+      "email": "manager.muscat@flowcare.com",
+      "password": "Manager@1234",
+      "firstName": "Ahmed",
+      "lastName": "Al-Rashidi",
+      "branchId": "branch-muscat",
+      "isManager": true,
+      "roleId": "role-branch-manager",
+      "serviceTypes": ["svc-general-consult", "svc-xray"]
+    },
+    {
+      "userId": "user-staff-muscat1",
+      "staffId": "staff-muscat1",
+      "email": "dr.sara@flowcare.com",
+      "password": "Staff@1234",
+      "firstName": "Sara",
+      "lastName": "Al-Hinai",
+      "branchId": "branch-muscat",
+      "isManager": false,
+      "roleId": "role-staff",
+      "serviceTypes": ["svc-general-consult"]
+    },
+    {
+      "userId": "user-staff-muscat2",
+      "staffId": "staff-muscat2",
+      "email": "lab.muscat@flowcare.com",
+      "password": "Staff@1234",
+      "firstName": "Khalid",
+      "lastName": "Al-Balushi",
+      "branchId": "branch-muscat",
+      "isManager": false,
+      "roleId": "role-staff",
+      "serviceTypes": ["svc-blood-test", "svc-xray"]
+    },
+    {
+      "userId": "user-staff-muscat3",
+      "staffId": "staff-muscat3",
+      "email": "dental.muscat@flowcare.com",
+      "password": "Staff@1234",
+      "firstName": "Fatima",
+      "lastName": "Al-Zadjali",
+      "branchId": "branch-muscat",
+      "isManager": false,
+      "roleId": "role-staff",
+      "serviceTypes": ["svc-dental"]
+    },
+    {
+      "userId": "user-manager-salalah",
+      "staffId": "staff-manager-salalah",
+      "email": "manager.salalah@flowcare.com",
+      "password": "Manager@1234",
+      "firstName": "Hassan",
+      "lastName": "Al-Kathiri",
+      "branchId": "branch-salalah",
+      "isManager": true,
+      "roleId": "role-branch-manager",
+      "serviceTypes": ["svc-general-consult", "svc-pharmacy"]
+    },
+    {
+      "userId": "user-staff-salalah1",
+      "staffId": "staff-salalah1",
+      "email": "dr.mona@flowcare.com",
+      "password": "Staff@1234",
+      "firstName": "Mona",
+      "lastName": "Al-Shanfari",
+      "branchId": "branch-salalah",
+      "isManager": false,
+      "roleId": "role-staff",
+      "serviceTypes": ["svc-general-consult"]
+    },
+    {
+      "userId": "user-staff-salalah2",
+      "staffId": "staff-salalah2",
+      "email": "eye.salalah@flowcare.com",
+      "password": "Staff@1234",
+      "firstName": "Omar",
+      "lastName": "Al-Mahri",
+      "branchId": "branch-salalah",
+      "isManager": false,
+      "roleId": "role-staff",
+      "serviceTypes": ["svc-eye-exam", "svc-blood-test"]
+    },
+    {
+      "userId": "user-staff-salalah3",
+      "staffId": "staff-salalah3",
+      "email": "pharmacy.salalah@flowcare.com",
+      "password": "Staff@1234",
+      "firstName": "Reem",
+      "lastName": "Al-Harrasi",
+      "branchId": "branch-salalah",
+      "isManager": false,
+      "roleId": "role-staff",
+      "serviceTypes": ["svc-pharmacy"]
+    }
+  ]
+}

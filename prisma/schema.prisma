@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  name      String
+  location  String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff        Staff[]
+  slots        Slot[]
+  appointments Appointment[]
+  auditLogs    AuditLog[]
+  services     BranchServiceType[]
+
+  @@map("branches")
+}
+
+model ServiceType {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  duration    Int      // duration in minutes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branches     BranchServiceType[]
+  slots        Slot[]
+  staffTypes   StaffServiceType[]
+  appointments Appointment[]
+
+  @@map("service_types")
+}
+
+model BranchServiceType {
+  id            String      @id @default(uuid())
+  branchId      String
+  serviceTypeId String
+  createdAt     DateTime    @default(now())
+
+  branch      Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, serviceTypeId])
+  @@map("branch_service_types")
+}
+
+model Role {
+  id   String @id @default(uuid())
+  name String @unique // admin, branch_manager, staff, customer
+
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  roleId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  role      Role       @relation(fields: [roleId], references: [id])
+  staff     Staff?
+  customer  Customer?
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Staff {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  branchId  String
+  isManager Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch       Branch             @relation(fields: [branchId], references: [id])
+  serviceTypes StaffServiceType[]
+  slots        Slot[]
+  appointments Appointment[]
+
+  @@map("staff")
+}
+
+model StaffServiceType {
+  id            String   @id @default(uuid())
+  staffId       String
+  serviceTypeId String
+  createdAt     DateTime @default(now())
+
+  staff       Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, serviceTypeId])
+  @@map("staff_service_types")
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  phone       String?
+  idImagePath String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@map("customers")
+}
+
+model Slot {
+  id            String    @id @default(uuid())
+  branchId      String
+  serviceTypeId String
+  staffId       String?
+  startTime     DateTime
+  endTime       DateTime
+  isAvailable   Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  branch      Branch      @relation(fields: [branchId], references: [id])
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
+  staff       Staff?      @relation(fields: [staffId], references: [id])
+  appointment Appointment?
+
+  @@map("slots")
+}
+
+model Appointment {
+  id             String            @id @default(uuid())
+  customerId     String
+  slotId         String            @unique
+  branchId       String
+  serviceTypeId  String
+  staffId        String?
+  status         AppointmentStatus @default(PENDING)
+  notes          String?
+  attachmentPath String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  slot        Slot        @relation(fields: [slotId], references: [id])
+  branch      Branch      @relation(fields: [branchId], references: [id])
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
+  staff       Staff?      @relation(fields: [staffId], references: [id])
+
+  @@map("appointments")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  action     String
+  actorId    String
+  actorRole  String
+  targetType String
+  targetId   String
+  branchId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor  User    @relation(fields: [actorId], references: [id])
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model SystemConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_configs")
+}
