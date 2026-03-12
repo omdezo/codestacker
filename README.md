@@ -220,13 +220,14 @@ curl "$BASE/api/config/retention" \
 |---|---|---|
 | `DATABASE_URL` | `postgresql://postgres:password@localhost:5432/flowcare` | PostgreSQL connection string |
 | `PORT` | `3000` | Server port |
+| `NODE_ENV` | `development` | Environment (`development` / `production`) |
 | `UPLOAD_DIR` | `./uploads` | File upload directory |
 | `MAX_FILE_SIZE_MB` | `5` | Max upload size in MB |
 | `ADMIN_EMAIL` | `admin@flowcare.com` | Seed admin email |
 | `ADMIN_PASSWORD` | `Admin@1234` | Seed admin password |
 | `DAILY_BOOKING_LIMIT` | `3` | Max bookings per customer per day |
 | `DAILY_RESCHEDULE_LIMIT` | `3` | Max reschedules per customer per day |
-| `RATE_LIMIT_WINDOW_MS` | `60000` | Rate limit window (ms) |
+| `RATE_LIMIT_WINDOW_MS` | `60000` | Rate limit window in ms |
 | `RATE_LIMIT_MAX_BOOKINGS` | `20` | Max POST/PUT requests per window per IP |
 
 ---
