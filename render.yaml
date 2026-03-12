@@ -1,0 +1,27 @@
+databases:
+  - name: flowcare-db
+    databaseName: flowcare
+    user: postgres
+    plan: free
+
+services:
+  - type: web
+    name: flowcare-api
+    plan: free
+    runtime: docker
+    startCommand: sh -c "npx prisma migrate deploy && node dist/index.js"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowcare-db
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: UPLOAD_DIR
+        value: /app/uploads
+      - key: MAX_FILE_SIZE_MB
+        value: 5
+      - key: ADMIN_EMAIL
+        value: admin@flowcare.com
+      - key: ADMIN_PASSWORD
+        sync: false
