@@ -130,39 +130,83 @@ curl http://localhost:3000/api/appointments/my \
   -H "Authorization: Basic $(echo -n 'customer@example.com:pass' | base64)"
 ```
 
+### Live API
+
+Base URL: `https://flowcare-api-q7ro.onrender.com`
+
+> Free tier spins down after inactivity — first request may take ~30s.
+
 ### Quick examples
 
 ```bash
-# List branches (public)
-curl http://localhost:3000/api/branches?term=Muscat
+BASE=https://flowcare-api-q7ro.onrender.com
+ADMIN=$(echo -n 'admin@flowcare.com:Admin@1234' | base64)
+MANAGER=$(echo -n 'manager.muscat@flowcare.com:Manager@1234' | base64)
+STAFF=$(echo -n 'dr.sara@flowcare.com:Staff@1234' | base64)
 
-# List available slots (public)
-curl "http://localhost:3000/api/branches/branch-muscat/slots?serviceTypeId=svc-general-consult&date=2026-03-15"
+# Health check (public)
+curl $BASE/health
 
-# Book an appointment (customer)
-curl -X POST http://localhost:3000/api/appointments \
-  -H "Authorization: Basic ..." \
-  -F "slotId=<slot-id>" \
-  -F "notes=Optional notes" \
-  -F "attachment=@/path/to/file.pdf"
+# Login as admin
+curl -X POST $BASE/api/auth/login \
+  -H "Authorization: Basic $ADMIN"
 
-# Update appointment status (staff/manager)
-curl -X PUT http://localhost:3000/api/appointments/<id>/status \
-  -H "Authorization: Basic ..." \
+# List all branches (public)
+curl "$BASE/api/branches"
+
+# Search branches by name
+curl "$BASE/api/branches?term=Muscat"
+
+# List branches with pagination
+curl "$BASE/api/branches?page=1&size=5"
+
+# List services for a branch (public)
+curl "$BASE/api/branches/branch-muscat/services"
+
+# List available slots for a branch (public)
+curl "$BASE/api/branches/branch-muscat/slots?date=2026-03-15"
+
+# List all appointments (admin sees all)
+curl "$BASE/api/appointments" \
+  -H "Authorization: Basic $ADMIN"
+
+# Search appointments by customer name or service
+curl "$BASE/api/appointments?term=Sara&page=1&size=10" \
+  -H "Authorization: Basic $ADMIN"
+
+# Update appointment status (staff)
+curl -X PUT "$BASE/api/appointments/<id>/status" \
+  -H "Authorization: Basic $STAFF" \
   -H "Content-Type: application/json" \
   -d '{"status": "CHECKED_IN"}'
 
 # Get queue position for an appointment
-curl http://localhost:3000/api/appointments/<id>/queue-position \
-  -H "Authorization: Basic ..."
+curl "$BASE/api/appointments/<id>/queue-position" \
+  -H "Authorization: Basic $STAFF"
 
-# Live branch queue count
-curl http://localhost:3000/api/config/queue/branch-muscat \
-  -H "Authorization: Basic ..."
+# Live branch queue count (admin)
+curl "$BASE/api/config/queue/branch-muscat" \
+  -H "Authorization: Basic $ADMIN"
+
+# List all staff (admin)
+curl "$BASE/api/staff" \
+  -H "Authorization: Basic $ADMIN"
+
+# List customers (manager)
+curl "$BASE/api/customers" \
+  -H "Authorization: Basic $MANAGER"
+
+# List audit logs (admin)
+curl "$BASE/api/audit-logs" \
+  -H "Authorization: Basic $ADMIN"
 
 # Export audit logs as CSV (admin)
-curl http://localhost:3000/api/audit-logs/export \
-  -H "Authorization: Basic ..." -o logs.csv
+curl "$BASE/api/audit-logs/export" \
+  -H "Authorization: Basic $ADMIN" -o logs.csv
+
+# Get soft-delete retention config (admin)
+curl "$BASE/api/config/retention" \
+  -H "Authorization: Basic $ADMIN"
 ```
 
 ---
