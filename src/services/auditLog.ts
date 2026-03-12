@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { AuthUser } from '../middleware/auth';
 
@@ -17,7 +18,7 @@ export async function createAuditLog(params: {
       targetType: params.targetType,
       targetId: params.targetId,
       branchId: params.branchId || null,
-      metadata: params.metadata || null,
+      metadata: params.metadata as Prisma.InputJsonValue | undefined,
     },
   });
 }

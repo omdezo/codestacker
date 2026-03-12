@@ -38,7 +38,7 @@ export async function listCustomers(req: Request, res: Response): Promise<void> 
   ]);
 
   res.json({
-    results: customers.map((c) => ({
+    results: customers.map((c: typeof customers[number]) => ({
       id: c.id,
       userId: c.userId,
       phone: c.phone,

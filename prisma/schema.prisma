@@ -21,6 +21,8 @@ model Branch {
   auditLogs    AuditLog[]
   services     BranchServiceType[]
 
+  @@index([name(ops: raw("gin_trgm_ops"))],     type: Gin)
+  @@index([location(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("branches")
 }
 
@@ -37,6 +39,8 @@ model ServiceType {
   staffTypes   StaffServiceType[]
   appointments Appointment[]
 
+  @@index([name(ops: raw("gin_trgm_ops"))],        type: Gin)
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("service_types")
 }
 
@@ -77,6 +81,9 @@ model User {
   customer  Customer?
   auditLogs AuditLog[]
 
+  @@index([firstName(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([lastName(ops: raw("gin_trgm_ops"))],  type: Gin)
+  @@index([email(ops: raw("gin_trgm_ops"))],      type: Gin)
   @@map("users")
 }
 
@@ -121,6 +128,7 @@ model Customer {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   appointments Appointment[]
 
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("customers")
 }
 
@@ -147,7 +155,7 @@ model Slot {
 model Appointment {
   id             String            @id @default(uuid())
   customerId     String
-  slotId         String            @unique
+  slotId         String?           @unique
   branchId       String
   serviceTypeId  String
   staffId        String?
@@ -158,7 +166,7 @@ model Appointment {
   updatedAt      DateTime          @updatedAt
 
   customer    Customer    @relation(fields: [customerId], references: [id])
-  slot        Slot        @relation(fields: [slotId], references: [id])
+  slot        Slot?       @relation(fields: [slotId], references: [id])
   branch      Branch      @relation(fields: [branchId], references: [id])
   serviceType ServiceType @relation(fields: [serviceTypeId], references: [id])
   staff       Staff?      @relation(fields: [staffId], references: [id])
@@ -189,6 +197,9 @@ model AuditLog {
   actor  User    @relation(fields: [actorId], references: [id])
   branch Branch? @relation(fields: [branchId], references: [id])
 
+  @@index([action(ops: raw("gin_trgm_ops"))],     type: Gin)
+  @@index([actorRole(ops: raw("gin_trgm_ops"))],  type: Gin)
+  @@index([targetType(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("audit_logs")
 }
 

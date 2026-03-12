@@ -44,7 +44,7 @@ export async function listServicesByBranch(req: Request, res: Response): Promise
   ]);
 
   res.json({
-    results: records.map((r) => r.serviceType),
+    results: records.map((r: typeof records[number]) => r.serviceType),
     total,
     page,
     size,

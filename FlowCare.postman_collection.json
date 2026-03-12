@@ -26,7 +26,10 @@
     { "key": "appointmentId",          "value": "",                                   "type": "string", "description": "Auto-captured by Book Appointment" },
     { "key": "customerId",             "value": "",                                   "type": "string", "description": "Auto-captured by Register Customer" },
     { "key": "staffId",                "value": "staff-muscat1",                      "type": "string" },
-    { "key": "createdSlotId",          "value": "",                                   "type": "string", "description": "Auto-captured by Create Slot (Single)" }
+    { "key": "createdSlotId",          "value": "",                                   "type": "string", "description": "Auto-captured by Create Slot (Single)" },
+    { "key": "statusAppointmentId",    "value": "",                                   "type": "string", "description": "Auto-captured by Book Appointment for Status Test — fresh appointment not cancelled" },
+    { "key": "newStaffId",             "value": "",                                   "type": "string", "description": "Auto-captured by Create Staff — Manager Creates Staff" },
+    { "key": "newStaffEmail",          "value": "",                                   "type": "string", "description": "Auto-generated unique email for new staff" }
   ],
 
   "event": [
@@ -108,7 +111,7 @@
                 { "key": "firstName", "value": "John",              "type": "text" },
                 { "key": "lastName",  "value": "Doe",               "type": "text" },
                 { "key": "phone",     "value": "+96891234567",       "type": "text" },
-                { "key": "idImage",   "type": "file", "src": "",     "description": "⚠️ SELECT an image file (.jpg/.png) — max 5MB — REQUIRED" }
+                { "key": "idImage",   "type": "file", "src": "test-id.jpg", "description": "⚠️ SELECT an image file (.jpg/.png) — max 5MB — REQUIRED" }
               ]
             },
             "url": {
@@ -985,6 +988,51 @@
       "description": "View and manage appointments (role-filtered). Staff see assigned appointments only. Managers see branch-only. Admins see all.",
       "item": [
         {
+          "name": "Book Appointment for Status Test",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{customerEmail}}",    "type": "string" },
+                { "key": "password", "value": "{{customerPassword}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "slotId", "value": "{{slotId}}", "type": "text", "description": "slotId is available again after the customer cancelled their appointment" },
+                { "key": "notes",  "value": "Status update test appointment", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments"]
+            },
+            "description": "Books a FRESH appointment for status update testing. The original appointmentId was cancelled in the Customer folder, so we need a new active appointment. slotId is available again after cancellation."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.id) {",
+                  "    pm.collectionVariables.set('statusAppointmentId', json.id);",
+                  "    console.log('[StatusTest] Booked fresh appointment:', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+
+        {
           "name": "List Appointments — Admin (All Branches)",
           "request": {
             "auth": {
@@ -1142,9 +1190,9 @@
               "options": { "raw": { "language": "json" } }
             },
             "url": {
-              "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}/status",
+              "raw": "{{baseUrl}}/api/appointments/{{statusAppointmentId}}/status",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "appointments", "{{appointmentId}}", "status"]
+              "path": ["api", "appointments", "{{statusAppointmentId}}", "status"]
             },
             "description": "Update appointment to CHECKED_IN. Valid statuses: `CONFIRMED`, `CHECKED_IN`, `COMPLETED`, `NO_SHOW`."
           },
@@ -1158,7 +1206,7 @@
                   "pm.test('Appointment status updated', () => {",
                   "    const json = pm.response.json();",
                   "    pm.expect(json.status).to.eql('CHECKED_IN');",
-                  "    pm.expect(json.id).to.eql(pm.collectionVariables.get('appointmentId'));",
+                  "    pm.expect(json.id).to.eql(pm.collectionVariables.get('statusAppointmentId'));",
                   "});"
                 ]
               }
@@ -1173,8 +1221,8 @@
             "auth": {
               "type": "basic",
               "basic": [
-                { "key": "username", "value": "{{staffMuscatEmail}}",    "type": "string" },
-                { "key": "password", "value": "{{staffMuscatPassword}}", "type": "string" }
+                { "key": "username", "value": "{{managerMuscatEmail}}",    "type": "string" },
+                { "key": "password", "value": "{{managerMuscatPassword}}", "type": "string" }
               ]
             },
             "method": "PUT",
@@ -1187,9 +1235,9 @@
               "options": { "raw": { "language": "json" } }
             },
             "url": {
-              "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}/status",
+              "raw": "{{baseUrl}}/api/appointments/{{statusAppointmentId}}/status",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "appointments", "{{appointmentId}}", "status"]
+              "path": ["api", "appointments", "{{statusAppointmentId}}", "status"]
             },
             "description": "Mark appointment as COMPLETED by staff."
           },
@@ -1231,9 +1279,9 @@
               "options": { "raw": { "language": "json" } }
             },
             "url": {
-              "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}/status",
+              "raw": "{{baseUrl}}/api/appointments/{{statusAppointmentId}}/status",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "appointments", "{{appointmentId}}", "status"]
+              "path": ["api", "appointments", "{{statusAppointmentId}}", "status"]
             },
             "description": "Negative test — invalid status value. Expects 400 Bad Request."
           },
@@ -1268,9 +1316,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}/attachment",
+              "raw": "{{baseUrl}}/api/appointments/{{statusAppointmentId}}/attachment",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "appointments", "{{appointmentId}}", "attachment"]
+              "path": ["api", "appointments", "{{statusAppointmentId}}", "attachment"]
             },
             "description": "Download the attachment file for an appointment.\n\nAccessible by: staff, manager, admin, or the appointment's own customer.\n\nReturns `404` if no attachment was uploaded."
           },
@@ -1294,6 +1342,46 @@
                   "        pm.expect(json).to.have.property('error');",
                   "    });",
                   "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+
+        {
+          "name": "Get Appointment Queue Position",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{managerMuscatEmail}}",    "type": "string" },
+                { "key": "password", "value": "{{managerMuscatPassword}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments/{{statusAppointmentId}}/queue-position",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments", "{{statusAppointmentId}}", "queue-position"]
+            },
+            "description": "Get the queue position for a specific appointment. Returns the position in the branch queue (PENDING/CONFIRMED appointments ahead of this one + 1)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Queue position response valid', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('appointmentId');",
+                  "    pm.expect(json).to.have.property('branchId');",
+                  "    // queuePosition is a number or null depending on appointment status",
+                  "    pm.expect(json).to.have.any.keys('queuePosition', 'message');",
+                  "});"
                 ]
               }
             }
@@ -1531,6 +1619,48 @@
                   "    const json = pm.response.json();",
                   "    pm.expect(json).to.have.property('message');",
                   "    pm.expect(json.message.toLowerCase()).to.include('deleted');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+
+        {
+          "name": "List Soft-Deleted Slots — Admin View",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{adminEmail}}",    "type": "string" },
+                { "key": "password", "value": "{{adminPassword}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/branches/branch-muscat/slots?includeDeleted=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "branches", "branch-muscat", "slots"],
+              "query": [
+                { "key": "includeDeleted", "value": "true" }
+              ]
+            },
+            "description": "Admin-only view that includes soft-deleted slots. Non-admins always see only active available slots."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is paginated', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('results');",
+                  "    pm.expect(json).to.have.property('total');",
+                  "    pm.expect(json.results).to.be.an('array');",
                   "});"
                 ]
               }
@@ -1790,6 +1920,108 @@
                   "pm.test('Removal confirmed', () => {",
                   "    const json = pm.response.json();",
                   "    pm.expect(json).to.have.property('message');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+
+        {
+          "name": "Create Staff — Manager Creates Staff",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{managerMuscatEmail}}",    "type": "string" },
+                { "key": "password", "value": "{{managerMuscatPassword}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{newStaffEmail}}\",\n  \"password\": \"Staff@1234\",\n  \"firstName\": \"New\",\n  \"lastName\": \"Doctor\",\n  \"branchId\": \"branch-muscat\",\n  \"isManager\": false\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/staff",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff"]
+            },
+            "description": "Create a new staff member. Branch managers can only create staff for their own branch. Only admins can set isManager: true."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Date.now();",
+                  "pm.collectionVariables.set('newStaffEmail', `newstaff_${ts}@flowcare.test`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Staff created with correct fields', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('id');",
+                  "    pm.expect(json).to.have.property('userId');",
+                  "    pm.expect(json).to.have.property('branchId');",
+                  "    pm.collectionVariables.set('newStaffId', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+
+        {
+          "name": "Assign Staff to Branch — Admin Only",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{adminEmail}}",    "type": "string" },
+                { "key": "password", "value": "{{adminPassword}}", "type": "string" }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": \"branch-salalah\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/staff/{{newStaffId}}/branch",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff", "{{newStaffId}}", "branch"]
+            },
+            "description": "Admin-only endpoint to reassign a staff member to a different branch."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Staff reassigned to new branch', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('id');",
+                  "    pm.expect(json.branchId).to.equal('branch-salalah');",
                   "});"
                 ]
               }

@@ -52,7 +52,7 @@ export async function exportAuditLogsCsv(req: Request, res: Response): Promise<v
     orderBy: { createdAt: 'desc' },
   });
 
-  const rows = logs.map((log) => ({
+  const rows = logs.map((log: typeof logs[number]) => ({
     id: log.id,
     action: log.action,
     actorEmail: log.actor.email,

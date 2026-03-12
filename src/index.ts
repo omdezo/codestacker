@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 // Rate limiting for booking endpoints
 const bookingLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
-  max: parseInt(process.env.RATE_LIMIT_MAX_BOOKINGS || '5', 10),
+  max: parseInt(process.env.RATE_LIMIT_MAX_BOOKINGS || '20', 10),
   message: { error: 'Too many booking requests. Please try again later.' },
   skip: (req) => !['POST', 'PUT'].includes(req.method),
 });
@@ -79,7 +79,7 @@ cron.schedule('0 0 * * *', async () => {
     for (const slot of expired) {
       await prisma.appointment.updateMany({
         where: { slotId: slot.id },
-        data: { status: 'CANCELLED' },
+        data: { slotId: null, status: 'CANCELLED' },
       });
 
       await prisma.slot.delete({ where: { id: slot.id } });

@@ -1,7 +1,10 @@
 node_modules/
 dist/
 .env
+.env.*
 uploads/
 *.log
 CLAUDE.md
 instruction.md
+.claude/
+test-id.jpg

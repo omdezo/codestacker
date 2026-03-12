@@ -1,15 +1,21 @@
 FROM node:20-alpine
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
-# Install dependencies
+# Copy package files and prisma schema before npm ci
+# (postinstall runs `prisma generate` which needs the schema)
 COPY package*.json ./
-RUN npm ci --only=production
+COPY prisma ./prisma
 
-# Copy source
+# Install all deps (dev included: prisma CLI + tsc are devDependencies)
+RUN npm ci
+
+# Copy remaining source
 COPY . .
 
-# Generate Prisma client
+# Re-generate Prisma client for the target platform (Alpine)
 RUN npx prisma generate
 
 # Build TypeScript

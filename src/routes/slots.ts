@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, requireManagerOrAdmin } from '../middleware/auth';
+import { authenticate, optionalAuthenticate, requireManagerOrAdmin } from '../middleware/auth';
 import {
   listAvailableSlots,
   createSlots,
@@ -10,8 +10,8 @@ import {
 
 const router = Router();
 
-// GET /branches/:branchId/slots - Public
-router.get('/:branchId/slots', listAvailableSlots);
+// GET /branches/:branchId/slots - Public (admins may pass ?includeDeleted=true)
+router.get('/:branchId/slots', optionalAuthenticate, listAvailableSlots);
 
 // POST /branches/:branchId/slots - Manager/Admin
 router.post('/:branchId/slots', authenticate, requireManagerOrAdmin, createSlots);

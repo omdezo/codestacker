@@ -25,19 +25,37 @@ export async function bookAppointment(req: Request, res: Response): Promise<void
     return;
   }
 
+  // Per-customer daily booking limit
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+  const dailyLimit = parseInt(process.env.DAILY_BOOKING_LIMIT || '3', 10);
+  const dailyBookings = await prisma.appointment.count({
+    where: {
+      customerId: customer.id,
+      createdAt: { gte: todayStart, lt: todayEnd },
+      status: { not: 'CANCELLED' },
+    },
+  });
+  if (dailyBookings >= dailyLimit) {
+    res.status(429).json({ error: `You have reached the maximum of ${dailyLimit} bookings per day.` });
+    return;
+  }
+
+  // Check slot not already booked (409 before availability check)
+  const existing = await prisma.appointment.findUnique({ where: { slotId } });
+  if (existing) {
+    res.status(409).json({ error: 'This slot is already booked.' });
+    return;
+  }
+
   // Check slot exists, is available, and not soft-deleted
   const slot = await prisma.slot.findFirst({
     where: { id: slotId, isAvailable: true, deletedAt: null },
   });
   if (!slot) {
     res.status(404).json({ error: 'Slot not found or not available.' });
-    return;
-  }
-
-  // Check slot not already booked
-  const existing = await prisma.appointment.findUnique({ where: { slotId } });
-  if (existing) {
-    res.status(409).json({ error: 'This slot is already booked.' });
     return;
   }
 
@@ -164,10 +182,13 @@ export async function cancelMyAppointment(req: Request, res: Response): Promise<
     return;
   }
 
-  await prisma.appointment.update({ where: { id }, data: { status: 'CANCELLED' } });
+  const cancelSlotId = appointment.slotId;
+  await prisma.appointment.update({ where: { id }, data: { status: 'CANCELLED', slotId: null } });
 
   // Free up the slot
-  await prisma.slot.update({ where: { id: appointment.slotId }, data: { isAvailable: true } });
+  if (cancelSlotId) {
+    await prisma.slot.update({ where: { id: cancelSlotId }, data: { isAvailable: true } });
+  }
 
   await createAuditLog({
     action: 'APPOINTMENT_CANCELLED',
@@ -195,6 +216,24 @@ export async function rescheduleMyAppointment(req: Request, res: Response): Prom
   const customer = await prisma.customer.findUnique({ where: { userId: user.id } });
   if (!customer) {
     res.status(403).json({ error: 'Only customers can reschedule their appointments.' });
+    return;
+  }
+
+  // Per-customer daily reschedule limit
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+  const rescheduleLimit = parseInt(process.env.DAILY_RESCHEDULE_LIMIT || '3', 10);
+  const dailyReschedules = await prisma.auditLog.count({
+    where: {
+      action: 'APPOINTMENT_RESCHEDULED',
+      actorId: user.id,
+      createdAt: { gte: todayStart, lt: todayEnd },
+    },
+  });
+  if (dailyReschedules >= rescheduleLimit) {
+    res.status(429).json({ error: `You have reached the maximum of ${rescheduleLimit} reschedules per day.` });
     return;
   }
 
@@ -240,7 +279,9 @@ export async function rescheduleMyAppointment(req: Request, res: Response): Prom
   });
 
   // Free old slot, book new slot
-  await prisma.slot.update({ where: { id: oldSlotId }, data: { isAvailable: true } });
+  if (oldSlotId) {
+    await prisma.slot.update({ where: { id: oldSlotId }, data: { isAvailable: true } });
+  }
   await prisma.slot.update({ where: { id: newSlotId }, data: { isAvailable: false } });
 
   await createAuditLog({
@@ -338,5 +379,60 @@ export async function updateAppointmentStatus(req: Request, res: Response): Prom
 
   const updated = await prisma.appointment.update({ where: { id }, data });
 
+  await createAuditLog({
+    action: 'APPOINTMENT_STATUS_UPDATED',
+    actor: user,
+    targetType: 'Appointment',
+    targetId: id,
+    branchId: appointment.branchId,
+    metadata: { previousStatus: appointment.status, newStatus: status },
+  });
+
   res.json(updated);
+}
+
+// Authenticated: Get queue position for a specific appointment
+export async function getAppointmentQueuePosition(req: Request, res: Response): Promise<void> {
+  const user = req.user!;
+  const { id } = req.params;
+
+  const appointment = await prisma.appointment.findUnique({
+    where: { id },
+    include: { customer: true },
+  });
+
+  if (!appointment) {
+    res.status(404).json({ error: 'Appointment not found.' });
+    return;
+  }
+
+  // Permission checks
+  if (user.role === 'customer' && appointment.customer.userId !== user.id) {
+    res.status(403).json({ error: 'Insufficient permissions.' });
+    return;
+  }
+  if (user.role === 'branch_manager' && appointment.branchId !== user.branchId) {
+    res.status(403).json({ error: 'Insufficient permissions.' });
+    return;
+  }
+  if (user.role === 'staff' && appointment.staffId !== user.staffId) {
+    res.status(403).json({ error: 'Insufficient permissions.' });
+    return;
+  }
+
+  if (!['PENDING', 'CONFIRMED'].includes(appointment.status)) {
+    res.json({ appointmentId: id, branchId: appointment.branchId, queuePosition: null, message: 'Appointment is not in active queue.' });
+    return;
+  }
+
+  // Count active appointments in same branch created before this one
+  const position = await prisma.appointment.count({
+    where: {
+      branchId: appointment.branchId,
+      status: { in: ['PENDING', 'CONFIRMED'] },
+      createdAt: { lt: appointment.createdAt },
+    },
+  });
+
+  res.json({ appointmentId: id, branchId: appointment.branchId, queuePosition: position + 1 });
 }

@@ -10,17 +10,29 @@ function paginate(query: Record<string, unknown>) {
 
 export async function listAvailableSlots(req: Request, res: Response): Promise<void> {
   const { branchId } = req.params;
-  const { serviceTypeId, date } = req.query as Record<string, string>;
+  const { serviceTypeId, date, term } = req.query as Record<string, string>;
   const { skip, take, page, size } = paginate(req.query as Record<string, unknown>);
+  const user = req.user;
+  const includeDeleted = user?.role === 'admin' && req.query.includeDeleted === 'true';
 
-  const where: Record<string, unknown> = {
-    branchId,
-    isAvailable: true,
-    deletedAt: null,
-    startTime: { gte: new Date() },
-  };
+  const where: Record<string, unknown> = { branchId };
+
+  if (!includeDeleted) {
+    where.isAvailable = true;
+    where.deletedAt = null;
+    where.startTime = { gte: new Date() };
+  }
 
   if (serviceTypeId) where.serviceTypeId = serviceTypeId;
+
+  if (term) {
+    where.OR = [
+      { serviceType: { name: { contains: term, mode: 'insensitive' } } },
+      { serviceType: { description: { contains: term, mode: 'insensitive' } } },
+      { staff: { user: { firstName: { contains: term, mode: 'insensitive' } } } },
+      { staff: { user: { lastName: { contains: term, mode: 'insensitive' } } } },
+    ];
+  }
 
   if (date) {
     const d = new Date(date);
@@ -227,13 +239,13 @@ export async function cleanupSoftDeletedSlots(req: Request, res: Response): Prom
   }
 
   for (const slot of expired) {
-    // Null out the slotId reference in appointments before deleting
+    // Null out the slotId FK and cancel related appointments before hard delete
     await prisma.appointment.updateMany({
       where: { slotId: slot.id },
-      data: { status: 'CANCELLED' },
+      data: { slotId: null, status: 'CANCELLED' },
     });
 
-    // Hard delete slot
+    // Hard delete slot (safe now that FK references are cleared)
     await prisma.slot.delete({ where: { id: slot.id } });
 
     await createAuditLog({

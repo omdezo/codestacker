@@ -9,6 +9,7 @@ import {
   rescheduleMyAppointment,
   listAppointments,
   updateAppointmentStatus,
+  getAppointmentQueuePosition,
 } from '../controllers/appointments';
 import { getAppointmentAttachment } from '../controllers/customers';
 
@@ -48,5 +49,8 @@ router.put('/:id/status', authenticate, requireStaffOrAbove, updateAppointmentSt
 
 // GET /appointments/:id/attachment - Auth: Get attachment
 router.get('/:id/attachment', authenticate, getAppointmentAttachment);
+
+// GET /appointments/:id/queue-position - Auth: Get real-time queue position
+router.get('/:id/queue-position', authenticate, getAppointmentQueuePosition);
 
 export default router;
