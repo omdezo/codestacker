@@ -1,7 +1,6 @@
 databases:
   - name: flowcare-db
     databaseName: flowcare
-    user: postgres
     plan: free
 
 services:
@@ -9,7 +8,6 @@ services:
     name: flowcare-api
     plan: free
     runtime: docker
-    startCommand: sh -c "npx prisma migrate deploy && node dist/index.js"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
