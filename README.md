@@ -45,7 +45,7 @@ FlowCare is a production-ready REST API that powers a multi-branch appointment a
 
 **Live API:** https://flowcare-api-q7ro.onrender.com
 
-> Deployed on Render (free tier). First request may take ~30s to wake up.
+> Deployed on Render.
 
 The full test suite is included as a Postman collection (`FlowCare.postman_collection.json`).
 
@@ -138,7 +138,6 @@ curl http://localhost:3000/api/appointments/my \
 
 Base URL: `https://flowcare-api-q7ro.onrender.com`
 
-> Free tier spins down after inactivity — first request may take ~30s.
 
 ### Quick examples
 

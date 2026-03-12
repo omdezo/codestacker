@@ -1,12 +1,12 @@
 databases:
   - name: flowcare-db
     databaseName: flowcare
-    plan: free
+    plan: standard
 
 services:
   - type: web
     name: flowcare-api
-    plan: free
+    plan: standard
     runtime: docker
     envVars:
       - key: DATABASE_URL
