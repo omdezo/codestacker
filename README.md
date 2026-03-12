@@ -342,7 +342,7 @@ codestacker/
 ## Contributing
 
 This project was built for the Rihal Codestacker 2026 Backend Challenge.
-Requirements are defined in `sysrequaments.md` (provided by Rihal).
+Requirements are defined in the [official Rihal Codestacker README](https://github.com/rihal-om/rihal-codestacker/blob/main/BE/README.md).
 
 ---
 
