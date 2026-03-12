@@ -349,5 +349,5 @@ Requirements are defined in the [official Rihal Codestacker README](https://gith
 
 ## Author
 
-**Omar**
+**[Omar Al-Kindi](https://omaralkindi.com)**
 Rihal Codestacker 2026 — Backend Challenge
