@@ -346,12 +346,6 @@ Requirements are defined in the [official Rihal Codestacker README](https://gith
 
 ---
 
-## License
-
-MIT
-
----
-
 ## Author
 
 **Omar**
