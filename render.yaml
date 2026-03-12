@@ -1,7 +1,7 @@
 databases:
   - name: flowcare-db
     databaseName: flowcare
-    plan: standard
+    plan: free
 
 services:
   - type: web
