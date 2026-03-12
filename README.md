@@ -1,5 +1,7 @@
 # FlowCare — Queue & Appointment Booking System
 
+![CI](https://github.com/omdezo/codestacker/actions/workflows/ci.yml/badge.svg)
+
 > Rihal Codestacker 2026 — Backend Challenge submission
 
 ---
