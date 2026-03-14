@@ -524,5 +524,5 @@ MIT
 
 ## Author
 
-**Omar**
+**Omar Al-Kindi**
 Rihal Codestacker 2026 — Backend Challenge
