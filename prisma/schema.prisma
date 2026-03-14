@@ -197,6 +197,9 @@ model AuditLog {
   actor  User    @relation(fields: [actorId], references: [id])
   branch Branch? @relation(fields: [branchId], references: [id])
 
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId])
+  @@index([targetId])
   @@index([action(ops: raw("gin_trgm_ops"))],     type: Gin)
   @@index([actorRole(ops: raw("gin_trgm_ops"))],  type: Gin)
   @@index([targetType(ops: raw("gin_trgm_ops"))], type: Gin)

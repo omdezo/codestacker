@@ -11,6 +11,8 @@
     "db:generate": "prisma generate",
     "db:seed": "ts-node src/seed/index.ts",
     "db:reset": "prisma migrate reset --force && npm run db:seed",
+    "db:seed-load": "node scripts/seed-load.js",
+    "bench:audit": "node scripts/bench-audit.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {
