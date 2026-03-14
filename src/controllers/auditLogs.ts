@@ -1,23 +1,16 @@
 import { Request, Response } from 'express';
 import { stringify } from 'csv-stringify/sync';
 import prisma from '../config/database';
+import { paginate } from '../utils/pagination';
 
-function paginate(query: Record<string, unknown>) {
-  const page = Math.max(1, parseInt((query.page as string) || '1', 10));
-  const size = Math.max(1, Math.min(100, parseInt((query.size as string) || '20', 10)));
-  return { skip: (page - 1) * size, take: size, page, size };
-}
-
-export async function listAuditLogs(req: Request, res: Response): Promise<void> {
-  const user = req.user!;
-  const { skip, take, page, size } = paginate(req.query as Record<string, unknown>);
-  const term = (req.query.term as string) || '';
-
+function buildAuditWhere(user: Express.Request['user'], query: Record<string, unknown>): Record<string, unknown> {
   const where: Record<string, unknown> = {};
 
-  if (user.role === 'branch_manager') {
-    where.branchId = user.branchId;
+  if (user!.role === 'branch_manager') {
+    where.branchId = user!.branchId;
   }
+
+  const { term, from, to, actorId, targetId } = query as Record<string, string>;
 
   if (term) {
     where.OR = [
@@ -26,6 +19,24 @@ export async function listAuditLogs(req: Request, res: Response): Promise<void> 
       { targetType: { contains: term, mode: 'insensitive' } },
     ];
   }
+
+  if (from || to) {
+    const createdAt: Record<string, Date> = {};
+    if (from) createdAt.gte = new Date(from);
+    if (to) createdAt.lte = new Date(to);
+    where.createdAt = createdAt;
+  }
+
+  if (actorId) where.actorId = actorId;
+  if (targetId) where.targetId = targetId;
+
+  return where;
+}
+
+export async function listAuditLogs(req: Request, res: Response): Promise<void> {
+  const user = req.user!;
+  const { skip, take, page, size } = paginate(req.query as Record<string, unknown>);
+  const where = buildAuditWhere(user, req.query as Record<string, unknown>);
 
   const [logs, total] = await Promise.all([
     prisma.auditLog.findMany({
@@ -44,7 +55,11 @@ export async function listAuditLogs(req: Request, res: Response): Promise<void> 
 }
 
 export async function exportAuditLogsCsv(req: Request, res: Response): Promise<void> {
+  const user = req.user!;
+  const where = buildAuditWhere(user, req.query as Record<string, unknown>);
+
   const logs = await prisma.auditLog.findMany({
+    where,
     include: {
       actor: { select: { email: true, firstName: true, lastName: true } },
       branch: { select: { name: true } },

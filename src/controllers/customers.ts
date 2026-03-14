@@ -2,12 +2,7 @@ import { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import prisma from '../config/database';
-
-function paginate(query: Record<string, unknown>) {
-  const page = Math.max(1, parseInt((query.page as string) || '1', 10));
-  const size = Math.max(1, Math.min(100, parseInt((query.size as string) || '20', 10)));
-  return { skip: (page - 1) * size, take: size, page, size };
-}
+import { paginate } from '../utils/pagination';
 
 export async function listCustomers(req: Request, res: Response): Promise<void> {
   const { skip, take, page, size } = paginate(req.query as Record<string, unknown>);

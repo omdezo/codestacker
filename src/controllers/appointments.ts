@@ -1,12 +1,9 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { createAuditLog } from '../services/auditLog';
-
-function paginate(query: Record<string, unknown>) {
-  const page = Math.max(1, parseInt((query.page as string) || '1', 10));
-  const size = Math.max(1, Math.min(100, parseInt((query.size as string) || '20', 10)));
-  return { skip: (page - 1) * size, take: size, page, size };
-}
+import { paginate } from '../utils/pagination';
+import { AppointmentStatus, UPDATABLE_STATUSES } from '../utils/roles';
+import { todayRange } from '../utils/dateUtils';
 
 // Customer: Book appointment
 export async function bookAppointment(req: Request, res: Response): Promise<void> {
@@ -26,16 +23,13 @@ export async function bookAppointment(req: Request, res: Response): Promise<void
   }
 
   // Per-customer daily booking limit
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
+  const { gte: todayStart, lt: todayEnd } = todayRange();
   const dailyLimit = parseInt(process.env.DAILY_BOOKING_LIMIT || '3', 10);
   const dailyBookings = await prisma.appointment.count({
     where: {
       customerId: customer.id,
       createdAt: { gte: todayStart, lt: todayEnd },
-      status: { not: 'CANCELLED' },
+      status: { not: AppointmentStatus.CANCELLED },
     },
   });
   if (dailyBookings >= dailyLimit) {
@@ -68,7 +62,7 @@ export async function bookAppointment(req: Request, res: Response): Promise<void
       staffId: slot.staffId || null,
       notes: notes || null,
       attachmentPath: req.file?.path || null,
-      status: 'PENDING',
+      status: AppointmentStatus.PENDING,
     },
     include: {
       slot: true,
@@ -177,7 +171,7 @@ export async function cancelMyAppointment(req: Request, res: Response): Promise<
     return;
   }
 
-  if (['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(appointment.status)) {
+  if ([AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW].includes(appointment.status as any)) {
     res.status(400).json({ error: `Cannot cancel an appointment with status: ${appointment.status}` });
     return;
   }
@@ -220,10 +214,7 @@ export async function rescheduleMyAppointment(req: Request, res: Response): Prom
   }
 
   // Per-customer daily reschedule limit
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
+  const { gte: todayStart, lt: todayEnd } = todayRange();
   const rescheduleLimit = parseInt(process.env.DAILY_RESCHEDULE_LIMIT || '3', 10);
   const dailyReschedules = await prisma.auditLog.count({
     where: {
@@ -246,7 +237,7 @@ export async function rescheduleMyAppointment(req: Request, res: Response): Prom
     return;
   }
 
-  if (['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(appointment.status)) {
+  if ([AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW].includes(appointment.status as any)) {
     res.status(400).json({ error: `Cannot reschedule an appointment with status: ${appointment.status}` });
     return;
   }
@@ -350,9 +341,8 @@ export async function updateAppointmentStatus(req: Request, res: Response): Prom
   const { id } = req.params;
   const { status, notes } = req.body;
 
-  const validStatuses = ['CHECKED_IN', 'NO_SHOW', 'COMPLETED', 'CONFIRMED'];
-  if (!status || !validStatuses.includes(status)) {
-    res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+  if (!status || !UPDATABLE_STATUSES.includes(status as any)) {
+    res.status(400).json({ error: `Invalid status. Must be one of: ${UPDATABLE_STATUSES.join(', ')}` });
     return;
   }
 
@@ -420,7 +410,7 @@ export async function getAppointmentQueuePosition(req: Request, res: Response): 
     return;
   }
 
-  if (!['PENDING', 'CONFIRMED'].includes(appointment.status)) {
+  if (![AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED].includes(appointment.status as any)) {
     res.json({ appointmentId: id, branchId: appointment.branchId, queuePosition: null, message: 'Appointment is not in active queue.' });
     return;
   }
@@ -429,7 +419,7 @@ export async function getAppointmentQueuePosition(req: Request, res: Response): 
   const position = await prisma.appointment.count({
     where: {
       branchId: appointment.branchId,
-      status: { in: ['PENDING', 'CONFIRMED'] },
+      status: { in: [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED] },
       createdAt: { lt: appointment.createdAt },
     },
   });

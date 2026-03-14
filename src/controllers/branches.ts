@@ -1,14 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
-
-function paginate(query: Record<string, unknown>) {
-  const page = Math.max(1, parseInt((query.page as string) || '1', 10));
-  const size = Math.max(1, Math.min(100, parseInt((query.size as string) || '20', 10)));
-  return { skip: (page - 1) * size, take: size, page, size };
-}
+import { paginate, parseOrder } from '../utils/pagination';
 
 export async function listBranches(req: Request, res: Response): Promise<void> {
   const { skip, take, page, size } = paginate(req.query as Record<string, unknown>);
+  const { column, order } = parseOrder(req.query as Record<string, unknown>, ['name', 'location'], 'name');
   const term = (req.query.term as string) || '';
 
   const where = term
@@ -21,12 +17,7 @@ export async function listBranches(req: Request, res: Response): Promise<void> {
     : {};
 
   const [branches, total] = await Promise.all([
-    prisma.branch.findMany({
-      where,
-      skip,
-      take,
-      orderBy: { name: 'asc' },
-    }),
+    prisma.branch.findMany({ where, skip, take, orderBy: { [column]: order } }),
     prisma.branch.count({ where }),
   ]);
 

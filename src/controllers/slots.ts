@@ -1,12 +1,9 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { createAuditLog } from '../services/auditLog';
-
-function paginate(query: Record<string, unknown>) {
-  const page = Math.max(1, parseInt((query.page as string) || '1', 10));
-  const size = Math.max(1, Math.min(100, parseInt((query.size as string) || '20', 10)));
-  return { skip: (page - 1) * size, take: size, page, size };
-}
+import { paginate } from '../utils/pagination';
+import { canAccessBranch, AppointmentStatus } from '../utils/roles';
+import { dayRange, daysAgo } from '../utils/dateUtils';
 
 export async function listAvailableSlots(req: Request, res: Response): Promise<void> {
   const { branchId } = req.params;
@@ -40,11 +37,7 @@ export async function listAvailableSlots(req: Request, res: Response): Promise<v
       res.status(400).json({ error: 'Invalid date format.' });
       return;
     }
-    const start = new Date(d);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(d);
-    end.setHours(23, 59, 59, 999);
-    where.startTime = { gte: start, lte: end };
+    where.startTime = dayRange(d);
   }
 
   const [slots, total] = await Promise.all([
@@ -69,7 +62,7 @@ export async function createSlots(req: Request, res: Response): Promise<void> {
   const { branchId } = req.params;
 
   // Branch manager can only manage their branch
-  if (user.role === 'branch_manager' && user.branchId !== branchId) {
+  if (!canAccessBranch(user, branchId)) {
     res.status(403).json({ error: 'You can only create slots for your branch.' });
     return;
   }
@@ -152,7 +145,7 @@ export async function updateSlot(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (user.role === 'branch_manager' && user.branchId !== slot.branchId) {
+  if (!canAccessBranch(user, slot.branchId)) {
     res.status(403).json({ error: 'You can only update slots in your branch.' });
     return;
   }
@@ -197,7 +190,7 @@ export async function deleteSlot(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (user.role === 'branch_manager' && user.branchId !== slot.branchId) {
+  if (!canAccessBranch(user, slot.branchId)) {
     res.status(403).json({ error: 'You can only delete slots in your branch.' });
     return;
   }
@@ -225,8 +218,7 @@ export async function cleanupSoftDeletedSlots(req: Request, res: Response): Prom
   });
   const retentionDays = parseInt(config?.value || '30', 10);
 
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - retentionDays);
+  const cutoff = daysAgo(retentionDays);
 
   const expired = await prisma.slot.findMany({
     where: { deletedAt: { not: null, lte: cutoff } },
@@ -242,7 +234,7 @@ export async function cleanupSoftDeletedSlots(req: Request, res: Response): Prom
     // Null out the slotId FK and cancel related appointments before hard delete
     await prisma.appointment.updateMany({
       where: { slotId: slot.id },
-      data: { slotId: null, status: 'CANCELLED' },
+      data: { slotId: null, status: AppointmentStatus.CANCELLED },
     });
 
     // Hard delete slot (safe now that FK references are cleared)
