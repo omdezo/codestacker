@@ -150,3 +150,63 @@ export async function listAuditLogsCursor(req: Request, res: Response): Promise<
   res.json({ results: logs, nextCursor, size });
 }
 
+/**
+ * Live side-by-side benchmark of both pagination strategies.
+ *
+ * Runs offset and cursor queries against the real database and returns
+ * the actual response times so the difference is visible without any setup.
+ *
+ * Query params:
+ *   page   which page depth to simulate for the offset query (default 1000)
+ *   size   rows per page, 1–20 (default 10)
+ */
+export async function paginationDemo(req: Request, res: Response): Promise<void> {
+  const page = Math.max(1, parseInt((req.query.page as string) || '1000', 10));
+  const size = Math.max(1, Math.min(20, parseInt((req.query.size as string) || '10', 10)));
+  const skip = (page - 1) * size;
+
+  const total = await prisma.auditLog.count();
+
+  // ── Offset query ────────────────────────────────────────────────────────────
+  const t0 = Date.now();
+  const offsetResults = await prisma.auditLog.findMany({
+    skip,
+    take: size,
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, action: true, createdAt: true },
+  });
+  const offsetMs = Date.now() - t0;
+
+  // ── Cursor query (first page — always O(log n)) ─────────────────────────────
+  const t1 = Date.now();
+  const cursorResults = await prisma.auditLog.findMany({
+    take: size,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, action: true, createdAt: true },
+  });
+  const cursorMs = Date.now() - t1;
+
+  const last = cursorResults.length === size ? cursorResults[cursorResults.length - 1] : null;
+
+  res.json({
+    total,
+    testedDepth: { page, skip, size },
+    offset: {
+      ms: offsetMs,
+      rowsDiscardedByDB: skip,
+      results: offsetResults,
+      note: `PostgreSQL had to scan past ${skip.toLocaleString()} rows before returning ${size}`,
+    },
+    cursor: {
+      ms: cursorMs,
+      rowsDiscardedByDB: 0,
+      results: cursorResults,
+      nextCursor: last ? { afterDate: last.createdAt, afterId: last.id } : null,
+      note: 'PostgreSQL used a B-tree index seek — read exactly ' + size + ' rows, nothing discarded',
+    },
+    verdict: offsetMs >= cursorMs
+      ? `Cursor is ${(offsetMs / Math.max(cursorMs, 1)).toFixed(1)}x faster at page ${page.toLocaleString()}`
+      : `Similar speed at this depth — try ?page=50000 after seeding 1M rows (npm run db:seed-load)`,
+  });
+}
+

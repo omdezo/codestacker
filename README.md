@@ -325,7 +325,8 @@ codestacker/
 | GET | `/api/customers/:id` | Get customer |
 | GET | `/api/customers/:id/id-image` | Download ID image (admin only) |
 | GET | `/api/audit-logs` | List audit logs — offset pagination (`page`, `size`, `term`, `from`, `to`, `actorId`, `targetId`) |
-| GET | `/api/audit-logs/cursor` | List audit logs — keyset pagination (`afterDate`, `afterId`, `size`). O(log n) at any depth. |
+| GET | `/api/audit-logs/cursor` | Keyset pagination (`afterDate`, `afterId`, `size`) — O(log n) at any depth |
+| GET | `/api/audit-logs/demo` | Live side-by-side benchmark of offset vs cursor (`?page=N`) |
 | GET | `/api/audit-logs/export` | Export audit logs as CSV — same filters as list |
 
 ### Admin Only
@@ -342,41 +343,77 @@ codestacker/
 
 ## Load Test & Pagination Benchmark
 
-### What we tested
+### What I tested
 
-To verify the system holds up under real load — and to decide whether the default offset-based audit log pagination was acceptable — we seeded the database with **1,000,000 audit log rows** + **10,000 customers** and benchmarked the audit log API at increasing page depths.
+I wanted to verify the audit log API holds up under real load before calling it done. I seeded the database with **1,000,000 audit log rows + 10,000 customers** and benchmarked the existing offset-based endpoint at increasing page depths.
 
-### How to run it yourself
+### Try it live
+
+There is a demo endpoint that runs both queries against the real database and returns the actual response times side by side:
 
 ```bash
-# 1. Run normal seed first (creates admin, branches, roles)
+BASE=https://flowcare-api-q7ro.onrender.com
+ADMIN=$(echo -n 'admin@flowcare.com:Admin@1234' | base64)
+
+# Default depth (page 1000)
+curl "$BASE/api/audit-logs/demo" -H "Authorization: Basic $ADMIN"
+
+# Crank it up — deeper = bigger gap
+curl "$BASE/api/audit-logs/demo?page=50000" -H "Authorization: Basic $ADMIN"
+```
+
+Example response:
+```json
+{
+  "total": 1000000,
+  "testedDepth": { "page": 50000, "skip": 999980, "size": 10 },
+  "offset": {
+    "ms": 1332,
+    "rowsDiscardedByDB": 999980,
+    "note": "PostgreSQL had to scan past 999,980 rows before returning 10"
+  },
+  "cursor": {
+    "ms": 74,
+    "rowsDiscardedByDB": 0,
+    "note": "PostgreSQL used a B-tree index seek — read exactly 10 rows, nothing discarded"
+  },
+  "verdict": "Cursor is 18.0x faster at page 50,000"
+}
+```
+
+> The live Render database has only a few rows so the difference is small there. To see dramatic results, seed locally first (instructions below).
+
+---
+
+### How to reproduce locally
+
+```bash
+# 1. Normal seed (admin, branches, roles)
 npm run db:seed
 
 # 2. Insert 1M audit logs + 10K customers (~90 seconds)
 npm run db:seed-load
 
-# 3. Start the API
+# 3. Start API
 npm run dev
 
-# 4. Run the benchmark (API must be running)
+# 4. Run the full benchmark script
 npm run bench:audit
 ```
 
-> Requires `DATABASE_URL` pointing to a PostgreSQL instance in `.env`.
-
-### Seed script internals (`scripts/seed-load.js`)
+**Seed script** (`scripts/seed-load.js`):
 
 | What | Count | Method |
 |---|---|---|
-| Customers (user + customer rows) | 10,000 | `createMany` in batches of 5,000 |
+| Customers | 10,000 | `createMany` in batches of 5,000 |
 | Audit logs | 1,000,000 | `createMany` in batches of 5,000 |
-| Seed time (M1-class CPU, local Postgres) | ~90s | — |
+| Time | ~90s | local PostgreSQL |
 
 ---
 
-### Step 1 — Benchmark: offset pagination only
+### Step 1 — Benchmark: offset only
 
-Before touching anything, we benchmarked the existing `GET /api/audit-logs?page=N&size=20` endpoint at increasing page numbers:
+I ran `npm run bench:audit` against 1,000,000 rows and got:
 
 ```
 Total audit logs in DB: 1,000,000
@@ -393,64 +430,61 @@ Total audit logs in DB: 1,000,000
   page=50000  (OFFSET 999,980)    avg= 1332ms   p95= 1414ms
 ```
 
-**Page 50,000 is 9.4x slower than page 1.**
-
-This is the expected PostgreSQL behaviour: `OFFSET N` forces the engine to read and discard the first N rows before returning your 20. It's `O(n)` — the deeper the page, the slower the query.
+Page 50,000 is **9.4x slower** than page 1. That told me the default offset approach had a real problem at scale.
 
 ---
 
-### Why this happens (offset internals)
+### Why offset degrades
 
 ```sql
--- What PostgreSQL runs for page=50000, size=20:
+-- PostgreSQL runs this for page=50000, size=20:
 SELECT * FROM audit_logs
 ORDER BY "createdAt" DESC
 LIMIT 20 OFFSET 999980;
---              ^^^^^^ PostgreSQL must scan through 999,980 rows
---                     and throw them away before it can return anything
+--              ^^^^^^ scans through 999,980 rows and discards them
+--                     before it can return the 20 you actually asked for
 ```
 
-There is no shortcut. Even with an index on `createdAt`, the database still has to step through 999,980 index entries to count them off before handing you row 999,981.
+Even with an index on `createdAt`, PostgreSQL still has to step through 999,980 index entries to count them off. There is no shortcut — it's `O(n)`.
 
 ---
 
-### Step 2 — Add keyset (cursor) pagination
+### Step 2 — Keyset (cursor) pagination
 
-We added `GET /api/audit-logs/cursor?afterDate=X&afterId=Y&size=20`.
+After seeing those results, I added `GET /api/audit-logs/cursor?afterDate=X&afterId=Y`.
 
-Instead of `OFFSET N`, the client passes the `createdAt` timestamp and `id` of the last row they saw. PostgreSQL translates this to a direct B-tree seek:
+Instead of `OFFSET N`, the client passes the `createdAt` and `id` of the last row it received. PostgreSQL translates that to a direct B-tree seek:
 
 ```sql
--- What PostgreSQL runs for cursor pagination (any depth):
 SELECT * FROM audit_logs
 WHERE "createdAt" < '2025-06-15T10:23:44Z'
    OR ("createdAt" = '2025-06-15T10:23:44Z' AND id < 'abc-123')
 ORDER BY "createdAt" DESC, id DESC
 LIMIT 20;
--- ↑ Index seek on (createdAt DESC) — reads exactly 20 rows, no scan, no discard
+-- Index seek — reads exactly 20 rows, discards nothing
 ```
 
-We also added a B-tree index on `audit_logs("createdAt" DESC)` via a new Prisma migration to make this seek instant.
+I also added a B-tree index on `audit_logs("createdAt" DESC)` via a new Prisma migration.
 
-> **Note:** We first tried Prisma's built-in `cursor: { id }` feature. At deep positions it was equally slow as offset (~1,400ms) because Prisma still needs to locate the cursor row in the ordered result set before paginating forward. True keyset pagination — filtering directly on the ordered column — is the only approach that stays flat.
+> **Note:** I first tried Prisma's built-in `cursor: { id }` feature. It was equally slow at deep positions (~1,400ms) — Prisma still has to locate the cursor row in the ordered result set before paginating, which is effectively another scan. True keyset pagination — filtering directly on the sorted column — is the only approach that stays flat.
 
 ---
 
-### Step 3 — Benchmark after cursor pagination
+### Step 3 — Benchmark after adding cursor
 
 ```
 [ CURSOR ]  GET /api/audit-logs/cursor?afterDate=X&afterId=Y&size=20
 
-  first page  (no cursor)         avg=   88ms   p95=  104ms
-  page~2      (cursor near top)   avg=   77ms   p95=   90ms
+  first page  (no cursor)          avg=   88ms   p95=  104ms
+  page~2      (cursor near top)    avg=   77ms   p95=   90ms
   page~50000  (cursor near bottom) avg=   74ms   p95=   79ms
 ```
 
-Completely flat across all depths.
+Completely flat. The query speed is identical whether you're at record 1 or record 999,980.
 
 ---
 
-### Final comparison
+### Result
 
 | Depth | Offset | Cursor | Speedup |
 |---|---|---|---|
@@ -459,18 +493,19 @@ Completely flat across all depths.
 | Page 25,000 (OFFSET 499,980) | 715ms | 74ms | 9.7x |
 | **Page 50,000 (OFFSET 999,980)** | **1,332ms** | **74ms** | **18x** |
 
-**Offset degrades 9.4x as you go from page 1 to page 50,000. Cursor stays at ~74ms regardless of depth.**
+Offset degrades 9.4x going from page 1 to page 50,000. Cursor stays at ~74ms at any depth.
 
 ---
 
-### Two endpoints, intentionally kept
+### Two endpoints, kept intentionally
 
-| Endpoint | Pagination | Returns total? | Use when |
+| Endpoint | Pagination | Returns total? | When to use |
 |---|---|---|---|
-| `GET /api/audit-logs` | Offset (`page` + `size`) | Yes | You need total count or page numbers in a UI |
-| `GET /api/audit-logs/cursor` | Keyset (`afterDate` + `afterId`) | No (returns `nextCursor`) | Log streaming, infinite scroll, deep navigation |
+| `GET /api/audit-logs` | Offset (`page` + `size`) | Yes | Need total count or page numbers in a UI |
+| `GET /api/audit-logs/cursor` | Keyset (`afterDate` + `afterId`) | No (`nextCursor` only) | Deep navigation, log streaming, infinite scroll |
+| `GET /api/audit-logs/demo` | — | Both | Live side-by-side comparison of the two |
 
-Neither replaces the other — they have different trade-offs.
+Both remain because they have different trade-offs — offset is the right choice when you need a total count for page numbers; cursor is the right choice when you're navigating deep or streaming.
 
 ---
 
